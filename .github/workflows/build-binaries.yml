@@ -1,0 +1,37 @@
+name: Build Binaries
+
+on:
+  workflow_dispatch:
+    inputs:
+      targets:
+        description: 'Build targets (comma-separated)'
+        required: true
+        default: 'linux-x64,win32-x64'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      
+      - name: Install Bazelisk
+        run: |
+          sudo wget https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-amd64 -O /usr/local/bin/bazel
+          sudo chmod +x /usr/local/bin/bazel
+      
+      - name: Install dependencies
+        run: bun install
+      
+      - name: Build binaries
+        run: bun run ci:release:build-binaries --targets ${{ github.event.inputs.targets }}
+      
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: binaries
+          path: packages/coding-agent/binaries/
