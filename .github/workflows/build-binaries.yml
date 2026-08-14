@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       targets:
-        description: 'Build targets (comma-separated)'
+        description: 'Build targets (comma-separated, e.g. linux-x64,win32-x64)'
         required: true
-        default: 'linux-x64,win32-x64'
+        default: 'linux-x64'
 
 jobs:
   build:
@@ -21,11 +21,26 @@ jobs:
       
       - name: Install Bazelisk
         run: |
-          sudo wget https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-amd64 -O /usr/local/bin/bazel
+          sudo wget -q https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-amd64 -O /usr/local/bin/bazel
           sudo chmod +x /usr/local/bin/bazel
+          bazel --version
       
       - name: Install dependencies
         run: bun install
+      
+      # ============================================
+      # 关键：先构建原生模块，再编译二进制！
+      # ============================================
+      - name: Build native addons (Linux x64)
+        run: |
+          bun scripts/bazel-natives.ts linux-x64-baseline --dest packages/natives/native
+      
+      - name: Build native addons (Windows x64)
+        # 注意：Windows 交叉编译需要下载 LLVM 工具链，可能占用 3-5GB 空间
+        # 如果磁盘不足，可以注释掉这一步，只构建 Linux 版本
+        if: ${{ contains(github.event.inputs.targets, 'win32') }}
+        run: |
+          bun scripts/bazel-natives.ts win32-x64-baseline --dest packages/natives/native
       
       - name: Build binaries
         run: bun run ci:release:build-binaries --targets ${{ github.event.inputs.targets }}
@@ -33,5 +48,5 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: binaries
+          name: omp-binaries
           path: packages/coding-agent/binaries/
